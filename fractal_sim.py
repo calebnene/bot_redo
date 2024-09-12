@@ -84,9 +84,9 @@ def evaluate_pair(i_pair, ma, price_data):
     df_trades['GAIN'] = (df_trades.apply(lambda row: gain(row, df_trades), axis=1)) / i_pair.pipLocation
     df_trades['time'] = pd.to_datetime(df_trades['time'])
 
-    print(f'{i_pair.name} trades: {df_trades.shape[0]} gain: {df_trades.GAIN.sum():.0f}')
+    #print(f'{i_pair.name} trades: {df_trades.shape[0]} gain: {df_trades.GAIN.sum():.0f}')
 
-    return df_trades['GAIN'].sum()
+    return df_trades['GAIN'].sum(), price_data
 
 def get_price_data(pairname, granularity):
     df = pd.read_pickle(utils.get_his_data_filename(pairname, granularity))
@@ -103,11 +103,11 @@ def process_data(ma, price_data):
     return price_data 
 
 def run():
-
     results = []
+    trades_dict = {}
     pairnames = ['CAD_CHF', 'CAD_JPY', 'CHF_JPY', 'EUR_CAD', 'EUR_CHF', 'EUR_GBP', 'EUR_JPY', 'EUR_NZD', 'EUR_USD', 'GBP_CAD', 'GBP_CHF', 'GBP_JPY',
                  'GBP_NZD', 'GBP_USD', 'NZD_CAD', 'NZD_JPY', 'NZD_USD', 'NZD_CHF', 'USD_CAD', 'USD_CHF', 'USD_JPY']
-    granularities = ['M5','M15', 'M30', 'H1', 'H4']
+    granularities = ['M5', 'M15', 'M30', 'H1', 'H4']
     ma = 200
 
     for pairname in pairnames:
@@ -119,12 +119,24 @@ def run():
             price_data = get_price_data(pairname, granularity)
             price_data = process_data(ma, price_data)
 
-            res = evaluate_pair(i_pair, ma, price_data.copy())
-            results.append((pairname, granularity, res))
-# Convert results to DataFrame
-    results = pd.DataFrame(results, columns=['pair', 'timeframe', 'total_gain'])
-    print(results)
-    return results 
+            total_gain, df_trades = evaluate_pair(i_pair, ma, price_data.copy())
+            results.append((pairname, granularity, total_gain))
+            trades_dict[(pairname, granularity)] = df_trades.dropna()  # Append df_trades to trades
+
+    results_df = pd.DataFrame(results, columns=['pair', 'timeframe', 'total_gain'])
+    print(results_df)
+
+    for key, trades_df in trades_dict.items():
+        pairname, granularity = key
+        print(f'\nTrades for {pairname} {granularity}')
+        print(trades_df)
+        
+        #save to CSV files
+        trades_df.to_pickle(f'all_trades\{pairname}_{granularity}_trades.pkl')
+
+    return results_df, trades_dict
+
+
 
 if __name__ == "__main__":
     run()
