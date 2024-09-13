@@ -24,6 +24,7 @@ def tp(row):
 
     if row.IS_TRADE == -1:
         return row['SL'] * 1.5
+    
 #checking the gains 
 def gain(row, df_ma):
     if row.IS_TRADE == 1:
@@ -84,9 +85,10 @@ def evaluate_pair(i_pair, ma, price_data):
     df_trades['GAIN'] = (df_trades.apply(lambda row: gain(row, df_trades), axis=1)) / i_pair.pipLocation
     df_trades['time'] = pd.to_datetime(df_trades['time'])
 
+    price_data['GAIN'] = df_trades['GAIN']
     #print(f'{i_pair.name} trades: {df_trades.shape[0]} gain: {df_trades.GAIN.sum():.0f}')
 
-    return df_trades['GAIN'].sum(), price_data
+    return df_trades['GAIN'], price_data
 
 def get_price_data(pairname, granularity):
     df = pd.read_pickle(utils.get_his_data_filename(pairname, granularity))
@@ -101,6 +103,7 @@ def process_data(ma, price_data):
 
 
     return price_data 
+
 
 def run():
     results = []
@@ -120,11 +123,14 @@ def run():
             price_data = process_data(ma, price_data)
 
             total_gain, df_trades = evaluate_pair(i_pair, ma, price_data.copy())
-            results.append((pairname, granularity, total_gain))
-            trades_dict[(pairname, granularity)] = df_trades.dropna()  # Append df_trades to trades
+            results.append((pairname, granularity, df_trades.dropna().shape[0], total_gain.sum()))
+            
+            # Store trades using just pairname and granularity as the key
+            trades_dict[(pairname, granularity)] = df_trades.dropna()  
 
-    results_df = pd.DataFrame(results, columns=['pair', 'timeframe', 'total_gain'])
+    results_df = pd.DataFrame(results, columns=['pair', 'timeframe', 'number_of_trades', 'total_gain'])
     print(results_df)
+    results_df.to_pickle("all_trades(total_gain).pkl")
 
     for key, trades_df in trades_dict.items():
         pairname, granularity = key
